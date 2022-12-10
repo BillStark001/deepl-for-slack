@@ -1,5 +1,6 @@
-export interface ReactionAddedEvent {
-  type: string;
+import { SlackEvent } from "./event-common";
+
+export interface ReactionAddedEvent extends SlackEvent {
   user: string;
   reaction: string;
   item_user: string;

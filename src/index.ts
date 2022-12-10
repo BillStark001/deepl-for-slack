@@ -1,20 +1,20 @@
-import { loadEnv } from './dotenv';
-loadEnv();
+import { config } from './config';
 
 import { App } from '@slack/bolt';
 import { ConsoleLogger, LogLevel } from '@slack/logger';
 import * as middleware from './custom-middleware';
 
+import { WebClient } from '@slack/web-api';
+
 import { DeepLApi } from './deepl';
-import * as runner from './runnner';
+import * as runner from './runner';
 import * as reacjilator from './reacjilator';
 
-
-const logLevel = process.env.SLACK_LOG_LEVEL as LogLevel || LogLevel.INFO;
+const logLevel = config.slackLogLevel;
 const logger = new ConsoleLogger();
 logger.setLevel(logLevel);
 
-const deepLAuthKey = process.env.DEEPL_AUTH_KEY;
+const deepLAuthKey = config.deepLAuthKey;
 if (!deepLAuthKey) {
   throw "DEEPL_AUTH_KEY is missing!";
 }
@@ -23,8 +23,8 @@ const deepL = new DeepLApi(deepLAuthKey, logger);
 const app = new App({
   logLevel,
   logger,
-  token: process.env.SLACK_BOT_TOKEN!!,
-  signingSecret: process.env.SLACK_SIGNING_SECRET!!,
+  token: config.slackBotToken!!,
+  signingSecret: config.slackSigningSecret!!,
   deferInitialization: true,
 });
 middleware.enableAll(app);
@@ -67,36 +67,9 @@ app.view("new-runner", async ({ body, ack }) => {
 // -----------------------------
 
 import { ReactionAddedEvent } from './types/reaction-added';
-
+import * as events from './events';
 app.event("reaction_added", async ({ body, client }) => {
-  const event = body.event as ReactionAddedEvent;
-  if (event.item['type'] !== 'message') {
-    return;
-  }
-  const channelId = event.item['channel'];
-  const messageTs = event.item['ts'];
-  if (!channelId || !messageTs) {
-    return;
-  }
-  const lang = reacjilator.lang(event);
-  if (!lang) {
-    return;
-  }
-
-  const replies = await reacjilator.repliesInThread(client, channelId, messageTs);
-  if (replies.messages && replies.messages.length > 0) {
-    const message = replies.messages[0];
-    if (message.text) {
-      const translatedText = await deepL.translate(message.text, lang);
-      if (translatedText == null) {
-        return;
-      }
-      if (reacjilator.isAlreadyPosted(replies, translatedText)) {
-        return;
-      }
-      await reacjilator.sayInThread(client, channelId, translatedText, message);
-    }
-  }
+  await events.onReactionAdded(body.event as ReactionAddedEvent, client, deepL);
 });
 
 // -----------------------------
@@ -106,7 +79,7 @@ app.event("reaction_added", async ({ body, client }) => {
 (async () => {
   try {
     await app.init();
-    await app.start(Number(process.env.PORT) || 3000);
+    await app.start(config.port);
     console.log('⚡️ Bolt app is running!');
   } catch (e) {
     console.log(e);

@@ -1,7 +1,8 @@
 import { App } from "@slack/bolt";
+import { config } from "./config";
 
 export function enableAll(app: App) {
-  if (process.env.SLACK_REQUEST_LOG_ENABLED === "1") {
+  if (config.slackRequestLogEnabled) {
     app.use(async (args: any) => {
       const copiedArgs = JSON.parse(JSON.stringify(args));
       copiedArgs.context.botToken = 'xoxb-***';
